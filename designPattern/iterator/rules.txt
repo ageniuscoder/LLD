@@ -1,0 +1,25 @@
+🔑 Critical C++ Rule (VERY IMPORTANT)
+
+Template classes MUST be fully visible at compile time
+
+👉 This means:
+
+Template class definitions go in .h files
+
+Do NOT put template implementations in .cpp
+
+Non-template classes (Song, PlayList) can go in .cpp.
+
+
+Interfaces are isolated
+
+Templates stay header-only
+
+Each folder = one domain concept
+
+Creation responsibility decides file ownership
+
+High-level code never includes low-level headers
+
+#pragma once prevents multiple inclusions of a header file by ensuring it is included only once per compilation, avoiding redefinition errors and improving compile time."
+#pragma once should be used only in headers file (.h) not in .cpp files
