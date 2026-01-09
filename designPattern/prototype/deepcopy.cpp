@@ -1,11 +1,11 @@
-#include <bits/stdc++.h>
+#include <bits/stdc++.h>        //if i have primitive data type means something which is allocated in stack will autmatially get deep copy
 using namespace std;
 class Address{
     string addr;
     public:
     Address(const string& addr):addr(addr){}
 
-    Address(const Address& other){  //deep copy
+    Address(const Address& other){  //deep copy              //here addr get deep copied
         this->addr=other.addr;
     }
     void setAddr(const string& adr){
@@ -15,7 +15,7 @@ class Address{
         return addr;
     }
 };
-class Person{
+class Person{                                        //but if i have memory allocated in heap then we have to enforce deep copy
     string name;
     unique_ptr<Address> address;
     public:
@@ -23,7 +23,7 @@ class Person{
 
     Person(const Person & other){
         this->name=other.name;
-        this->address=make_unique<Address>(*other.address);
+        this->address=make_unique<Address>(*other.address);              //using new keyword for raw ptr and methods for smart pointers 
     }
     void setAddr(const string& addr){
         address->setAddr(addr);
