@@ -6,13 +6,8 @@ class Singleton {
     }
 
 public:
-    static Singleton& getInstance() {
-        static Singleton instance;   // thread-safe initialization
-        return instance;
-    }
-
-    Singleton(const Singleton&) = delete;
-    Singleton& operator=(const Singleton&) = delete;
+    Singleton(const Singleton&)=delete;
+    Singleton& operator=(const Singleton&)=delete;
 
     void print() {
         cout << "i am class 1\n";

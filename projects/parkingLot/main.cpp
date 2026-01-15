@@ -127,6 +127,9 @@ class ParkingLevel{
         mediumAvail=0;
         largeAvail=0;
     }
+    unordered_map<ParkingSpot*,bool>& getRecord(){
+        return record;
+    }
     int totalSpot(){
         return record.size();
     }
@@ -215,7 +218,216 @@ class ParkingLevel{
         cout<<"["<<"Level"<<"]: "<<level<<endl;
         cout<<"["<<"Vehicle"<<"]:"<<vehicle->getVehicleNumber()<<"is unparked"<<endl;
     }
-
+    int getLevel(){
+        return level;
+    }
 };
 int ParkingLevel::cnt=1;
-int main(){}
+class FeeStrategy{
+    public:
+    virtual double calcFee(ParkingSpot* spot,int hrs)=0;
+    virtual ~FeeStrategy()=default;
+};
+class VehicleSizeBasedFee:public FeeStrategy{
+    unordered_map<VehicleSize,double> fee; //per hrs
+    public:
+    VehicleSizeBasedFee(){
+        fee[VehicleSize::SMALL]=10.0;
+        fee[VehicleSize::MEDIUM]=15.0;
+        fee[VehicleSize::LARGE]=20.0;
+    }
+    double calcFee(ParkingSpot* spot,int hrs){
+        hrs=max(1,hrs);
+        return fee[spot->getSize()]*hrs;
+    }
+};
+class ParkingTicket{
+    static int cnt;
+    string id;
+    int level;
+    ParkingSpot* spot;
+    int enterTime;
+    int exitTime;
+    Vehicle* vehicle;
+    FeeStrategy* feeStrag;
+    public: 
+    ParkingTicket(int level,ParkingSpot *spot,int enter,Vehicle* vehicle,FeeStrategy* feeStrag):level(level),spot(spot),enterTime(enter),exitTime(enter),vehicle(vehicle),feeStrag(feeStrag){
+        id="ticket_"+to_string(cnt++);
+    }
+    double calcFee(){
+        return feeStrag->calcFee(spot,exitTime-enterTime);
+    }
+    int getLevel(){
+        return level;
+    }
+    void getEntryTicket(){
+        cout<<"Ticket Id: "<<id<<endl;
+        cout<<"Parking level: "<<level<<"   "<<"Spot: "<<spot->getId()<<endl;
+        cout<<"Enter time: "<<enterTime<<endl;
+        cout<<"Vehicle :"<<vehicle->getVehicleNumber()<<endl;
+    }
+    void getExitTicket(){
+        cout<<"Ticket Id: "<<id<<endl;
+        cout<<"Vehicle :"<<vehicle->getVehicleNumber()<<endl;
+        cout<<"Parking level: "<<level<<"   "<<"Spot: "<<spot->getId()<<endl;
+        cout<<"Enter time: "<<enterTime<<" "<<"Exit time: "<<exitTime<<endl;
+        cout<<"Total Hrs parked: "<<exitTime-enterTime<<endl;
+        cout<<"Total Bill: "<<calcFee()<<endl;
+    }
+    void setExitTime(int time){
+        exitTime=time;
+    }
+};
+int ParkingTicket::cnt=1;
+class ParkingStrategy{
+    public:
+    virtual pair<int,ParkingSpot*> findSpot(unordered_map<int,ParkingLevel*> & parkingArea,Vehicle* vehicle)=0;
+    virtual ~ParkingStrategy()=default;
+};
+class BestFit:public ParkingStrategy{
+    public:
+    pair<int,ParkingSpot*> findSpot(unordered_map<int,ParkingLevel*> & parkingArea,Vehicle* vehicle){
+        for(auto &[id,level]:parkingArea){
+            for(auto &[spot,avail]:level->getRecord()){
+                if((spot->getSize()==vehicle->getSize()) && !avail){
+                    return {id,spot};
+                }
+            }
+        }
+        return {-1,nullptr};
+    }
+};
+class ParkingLot{
+    unordered_map<int,ParkingLevel*> parkingArea; //level no,level
+    unordered_map<string,unique_ptr<ParkingTicket>> activeTickets;  //vechicle no,ticket
+    FeeStrategy* feeStrat;
+    ParkingStrategy* parkingStrat;
+    ParkingLot(FeeStrategy* feeStrat,ParkingStrategy* parkingStrat):feeStrat(feeStrat),parkingStrat(parkingStrat){}
+    public:
+    ParkingLot(const ParkingLot&)=delete;  //avoid copying
+    ParkingLot& operator=(const ParkingLot&)=delete;  //avoid assiging
+    static ParkingLot& init(FeeStrategy* feeStrat,ParkingStrategy* parkingStrat){
+        static ParkingLot instance(feeStrat,parkingStrat);
+        return instance;
+    }
+    static ParkingLot& getInstance(){
+        return init(nullptr,nullptr);
+    }
+    void addLevels(ParkingLevel* level){
+        if(parkingArea.find(level->getLevel())!=parkingArea.end()){
+            cout<<"This level is already added"<<endl;
+            return;
+        }
+        parkingArea[level->getLevel()]=level;
+    }
+    void getFullDetails(){
+        if(parkingArea.size()==0){
+            cout<<"Nothing to show"<<endl;
+            return;
+        }
+        for(auto [id,level]:parkingArea){
+            cout<<"[LEVEL]: "<<id<<endl;
+            level->getDetails();
+            cout<<endl;
+        }
+    }
+
+    void getLevelDetail(int id){
+        if(parkingArea.find(id)==parkingArea.end()){
+            cout<<"This floor doesn,t exist"<<endl;
+            return;
+        }
+        cout<<"[LEVEL]: "<<id<<endl;
+        parkingArea[id]->getDetails();
+        cout<<endl;
+    }
+
+    pair<int,ParkingSpot*> findSpot(unordered_map<int,ParkingLevel*> & parkingArea,Vehicle* vehicle){
+        return parkingStrat->findSpot(parkingArea,vehicle);
+    }
+    unique_ptr<ParkingTicket> genrateTicket(int level,ParkingSpot *spot,int enter,int exit,Vehicle* vehicle,FeeStrategy* feeStrat){
+        return make_unique<ParkingTicket>(level,spot,enter,exit,vehicle,feeStrat);
+    }
+    void entry(Vehicle* vehicle,int entryTime){
+        auto [level,spot]=findSpot(parkingArea,vehicle);
+        if(level==-1){
+            cout<<"No valid Parking Spot is Available for this Vehicle"<<endl;
+            return;
+        }
+        unique_ptr<ParkingTicket> ticket=genrateTicket(level,spot,entryTime,vehicle,feeStrat);
+        ticket->getEntryTicket();
+        parkingArea[level]->park(vehicle,spot);
+        activeTickets[vehicle->getVehicleNumber()]=move(ticket);
+    }
+
+    void exit(Vehicle* vehicle,int time){
+        auto it=activeTickets.find(vehicle->getVehicleNumber());
+        if(activeTickets.size()==0 || it==activeTickets.end()){
+            cout<<"This vehicle is not parked"<<endl;
+            return;
+        }
+        ParkingTicket* ticket=it->second.get();
+        ParkingLevel* floor=parkingArea[ticket->getLevel()];
+        floor->unpark(vehicle);
+        ticket->setExitTime(time);
+        ticket->getExitTicket();
+        activeTickets.erase(it);
+    } 
+};
+
+int main(){
+    vector<unique_ptr<Vehicle>> vehicles;  //12
+    //3 bikes
+    for(int i=0;i<3;i++){
+        string num="bike_"+to_string(i+1);
+        vehicles.push_back(make_unique<Bike>(num));
+    }
+    for(int i=0;i<4;i++){
+        string num="car_"+to_string(i+1);
+        vehicles.push_back(make_unique<Car>(num));
+    }
+    for(int i=0;i<5;i++){
+        string num="truck_"+to_string(i+1);
+        vehicles.push_back(make_unique<Truck>(num));
+    }
+    vector<unique_ptr<ParkingSpot>> spots;
+    for(int i=0;i<2;i++){
+        spots.push_back(make_unique<SmallSpot>());
+    }
+    for(int i=0;i<3;i++){
+        spots.push_back(make_unique<MediumSpot>());
+    }
+    for(int i=0;i<3;i++){
+        spots.push_back(make_unique<LargeSpot>());
+    }
+    vector<unique_ptr<ParkingLevel>> levels;
+    for(int i=0;i<2;i++){
+        levels.push_back(make_unique<ParkingLevel>());
+    }
+
+    for(int i=0;i<8;i++){
+        if(i%2==0){
+            levels[0]->addSpot(spots[i].get());
+        }else{
+            levels[1]->addSpot(spots[i].get());
+        }
+    }
+    unqiue_ptr<ParkingStrategy> parkingStrat=make_unique<BestFit>();
+    unique_ptr<FeeStrategy> feeStrat=make_unique<VehicleSizeBasedFee>();
+    ParkingLot & place=ParkingLot::init(feeStrat.get(),parkingStrat.get());
+    for(auto level:levels){
+        place.addLevels(level.get());
+    }
+    place.getFullDetails();
+    place.entry(vehicles[2].get(),7);
+    place.entry(vehicles[9].get(),5);
+    place.entry(vehicles[4].get(),5);
+    place.entry(vehicles[8].get(),4);
+    place.exit(vehicles[2].get(),9);
+    place.entry(vehicles[6].get(),10);
+    place.entry(vehicles[0].get(),10);
+    place.exit(vehicles[9].get(),8);
+    place.exit(vehicles[4].get(),7);
+    place.exit(vehicles[0].get(),11);
+
+}
