@@ -115,7 +115,7 @@ class LargeSpot:public ParkingSpot{
 class ParkingLevel{
     static int cnt;
     int level;
-    unordered_map<ParkingSpot*,bool> record;
+    unordered_set<ParkingSpot*> record;
     unordered_map<string,ParkingSpot*> parkedVehicle;  //vehicle no,spot
     int smallAvail;
     int mediumAvail;
@@ -127,7 +127,7 @@ class ParkingLevel{
         mediumAvail=0;
         largeAvail=0;
     }
-    unordered_map<ParkingSpot*,bool>& getRecord(){
+    unordered_set<ParkingSpot*>& getRecord(){
         return record;
     }
     int totalSpot(){
@@ -149,7 +149,7 @@ class ParkingLevel{
                 largeAvail++;
                 break;
         }
-        record[spot]=false;
+        record.insert(spot);
     }
     void getDetails(){
         cout<<"["<<"Total Available Spot"<<"] :"<<smallAvail+mediumAvail+largeAvail<<endl;
@@ -168,16 +168,11 @@ class ParkingLevel{
     }
 
     void park(Vehicle* vehicle,ParkingSpot* spot){
-        if(record[spot]){
-            cout<<"Spot is already filled"<<endl;
-            return;
-        }
         if(!spot->canPark(vehicle) || spot->isOccupied()){
             cout<<"Vehicle cannot be parked here"<<endl;
             return;
         }
         spot->park(vehicle);
-        record[spot]=true;
         parkedVehicle[vehicle->getVehicleNumber()]=spot;
         switch(spot->getSize()){
             case VehicleSize::SMALL:
@@ -197,12 +192,11 @@ class ParkingLevel{
     void unpark(Vehicle *vehicle){
         auto it=parkedVehicle.find(vehicle->getVehicleNumber());
         if(it==parkedVehicle.end()){
-            cout<<"Vehicle can,t be unparked"<<endl;
+            cout<<"Vehicle can,t be exited"<<endl;
             return;
         }
         ParkingSpot* spot=it->second;
         parkedVehicle.erase(it);
-        record[spot]=false;
         spot->unpark();
         switch(spot->getSize()){
             case VehicleSize::SMALL:
@@ -216,7 +210,7 @@ class ParkingLevel{
                 break;
         }
         cout<<"["<<"Level"<<"]: "<<level<<endl;
-        cout<<"["<<"Vehicle"<<"]:"<<vehicle->getVehicleNumber()<<"is unparked"<<endl;
+        cout<<"["<<"Vehicle"<<"]:"<<vehicle->getVehicleNumber()<<" exits"<<endl;
     }
     int getLevel(){
         return level;
@@ -262,9 +256,10 @@ class ParkingTicket{
     }
     void getEntryTicket(){
         cout<<"Ticket Id: "<<id<<endl;
+        cout<<"Vehicle :"<<vehicle->getVehicleNumber()<<endl;
         cout<<"Parking level: "<<level<<"   "<<"Spot: "<<spot->getId()<<endl;
         cout<<"Enter time: "<<enterTime<<endl;
-        cout<<"Vehicle :"<<vehicle->getVehicleNumber()<<endl;
+        
     }
     void getExitTicket(){
         cout<<"Ticket Id: "<<id<<endl;
@@ -288,8 +283,8 @@ class BestFit:public ParkingStrategy{
     public:
     pair<int,ParkingSpot*> findSpot(unordered_map<int,ParkingLevel*> & parkingArea,Vehicle* vehicle){
         for(auto &[id,level]:parkingArea){
-            for(auto &[spot,avail]:level->getRecord()){
-                if((spot->getSize()==vehicle->getSize()) && !avail){
+            for(auto &spot:level->getRecord()){
+                if((spot->getSize()==vehicle->getSize()) && !spot->isOccupied()){
                     return {id,spot};
                 }
             }
@@ -345,8 +340,8 @@ class ParkingLot{
     pair<int,ParkingSpot*> findSpot(unordered_map<int,ParkingLevel*> & parkingArea,Vehicle* vehicle){
         return parkingStrat->findSpot(parkingArea,vehicle);
     }
-    unique_ptr<ParkingTicket> genrateTicket(int level,ParkingSpot *spot,int enter,int exit,Vehicle* vehicle,FeeStrategy* feeStrat){
-        return make_unique<ParkingTicket>(level,spot,enter,exit,vehicle,feeStrat);
+    unique_ptr<ParkingTicket> genrateTicket(int level,ParkingSpot *spot,int enter,Vehicle* vehicle,FeeStrategy* feeStrat){
+        return make_unique<ParkingTicket>(level,spot,enter,vehicle,feeStrat);
     }
     void entry(Vehicle* vehicle,int entryTime){
         auto [level,spot]=findSpot(parkingArea,vehicle);
@@ -375,20 +370,65 @@ class ParkingLot{
     } 
 };
 
+class VehicleFactory{
+    public:
+    virtual unique_ptr<Vehicle> createVehicle(VehicleType type)=0;
+    virtual ~VehicleFactory()=default;
+};
+
+class TwoWheeler:public VehicleFactory{
+    static int id;
+    public:
+    unique_ptr<Vehicle> createVehicle(VehicleType type){
+        switch(type){
+            case VehicleType::BIKE:
+                return make_unique<Bike>("bike_"+to_string(id++));
+            default:
+                return nullptr;
+        }
+    }
+};
+int TwoWheeler::id=1;
+class FourWheeler:public VehicleFactory{
+    static int id;
+    public:
+    unique_ptr<Vehicle> createVehicle(VehicleType type){
+        switch(type){
+            case VehicleType::CAR:
+                return make_unique<Car>("car_"+to_string(id++));
+            default:
+                return nullptr;
+        }
+    }
+};
+int FourWheeler::id=1;
+class HeavyVehicles:public VehicleFactory{
+    static int id;
+    public:
+    unique_ptr<Vehicle> createVehicle(VehicleType type){
+        switch(type){
+            case VehicleType::TRUCK:
+                return make_unique<Truck>("truck_"+to_string(id++));
+            default:
+                return nullptr;
+        }
+    }
+};
+int HeavyVehicles::id=1;
 int main(){
+    unique_ptr<VehicleFactory> twoWheeler=make_unique<TwoWheeler>();
+    unique_ptr<VehicleFactory> fourWheeler=make_unique<FourWheeler>();
+    unique_ptr<VehicleFactory> heavyVehicle=make_unique<HeavyVehicles>();
     vector<unique_ptr<Vehicle>> vehicles;  //12
     //3 bikes
     for(int i=0;i<3;i++){
-        string num="bike_"+to_string(i+1);
-        vehicles.push_back(make_unique<Bike>(num));
+        vehicles.push_back(move(twoWheeler->createVehicle(VehicleType::BIKE)));
     }
     for(int i=0;i<4;i++){
-        string num="car_"+to_string(i+1);
-        vehicles.push_back(make_unique<Car>(num));
+        vehicles.push_back(move(fourWheeler->createVehicle(VehicleType::CAR)));
     }
     for(int i=0;i<5;i++){
-        string num="truck_"+to_string(i+1);
-        vehicles.push_back(make_unique<Truck>(num));
+        vehicles.push_back(move(heavyVehicle->createVehicle(VehicleType::TRUCK)));
     }
     vector<unique_ptr<ParkingSpot>> spots;
     for(int i=0;i<2;i++){
@@ -412,10 +452,10 @@ int main(){
             levels[1]->addSpot(spots[i].get());
         }
     }
-    unqiue_ptr<ParkingStrategy> parkingStrat=make_unique<BestFit>();
+    unique_ptr<ParkingStrategy> parkingStrat=make_unique<BestFit>();
     unique_ptr<FeeStrategy> feeStrat=make_unique<VehicleSizeBasedFee>();
     ParkingLot & place=ParkingLot::init(feeStrat.get(),parkingStrat.get());
-    for(auto level:levels){
+    for(auto &level:levels){
         place.addLevels(level.get());
     }
     place.getFullDetails();
