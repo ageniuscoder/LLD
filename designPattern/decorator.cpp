@@ -12,15 +12,16 @@ class Mario:public ICharacter{
     }
 };
 class Decorator:public ICharacter{
+    protected:
+    shared_ptr<ICharacter> ch;
     public:
-    virtual void getAbilities()=0;
+    Decorator(shared_ptr<ICharacter> ch):ch(ch){}
     virtual ~Decorator()=default;
 };
 class GunAbility:public Decorator{
-    shared_ptr<ICharacter> ch;
+    
     public:
-    GunAbility(shared_ptr<ICharacter> ch){
-        this->ch=ch;
+    GunAbility(shared_ptr<ICharacter> ch):Decorator(ch){
     }
     void getAbilities(){
         ch->getAbilities();
@@ -28,10 +29,8 @@ class GunAbility:public Decorator{
     }
 };
 class HeightAbility:public Decorator{
-    shared_ptr<ICharacter> ch;
     public:
-    HeightAbility(shared_ptr<ICharacter> ch){
-        this->ch=ch;
+    HeightAbility(shared_ptr<ICharacter> ch):Decorator(ch){
     }
     void getAbilities(){
         ch->getAbilities();
@@ -39,9 +38,8 @@ class HeightAbility:public Decorator{
     }
 };
 class StarAbility:public Decorator{
-    shared_ptr<ICharacter> ch;
     public:
-    StarAbility(shared_ptr<ICharacter> ch){
+    StarAbility(shared_ptr<ICharacter> ch):Decorator(ch){
         this->ch=ch;
     }
     void getAbilities(){
