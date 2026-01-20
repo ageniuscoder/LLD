@@ -31,9 +31,12 @@ class PdfUnlockerProxy: public IdocUnlocker{
     shared_ptr<User> user;
     unique_ptr<IdocUnlocker> pdf;
     public:
-    PdfUnlockerProxy(shared_ptr<User> user,unique_ptr<IdocUnlocker> pdf):user(user),pdf(move(pdf)){}
+    PdfUnlockerProxy(shared_ptr<User> user):user(user){}
     void unlockPdf(string file,string pwd){
         if(user->isPremium()){
+            if(!pdf){
+                pdf=make_unique<PdfUnlocker>();
+            }
             cout<<user->getName()<<" has unlocked the ";
             pdf->unlockPdf(file,pwd);
         }else{
@@ -45,8 +48,7 @@ class PdfUnlockerProxy: public IdocUnlocker{
 
 int main(){
     shared_ptr<User> mangal=make_shared<User>("mangal",false);
-    //mangal->setPremium();
-    unique_ptr<PdfUnlocker> pdf=make_unique<PdfUnlocker>();
-    unique_ptr<IdocUnlocker> tool=make_unique<PdfUnlockerProxy>(mangal,move(pdf));
+    mangal->setPremium();
+    unique_ptr<IdocUnlocker> tool=make_unique<PdfUnlockerProxy>(mangal);
     tool->unlockPdf("abc.pdf","mangal");
 }
