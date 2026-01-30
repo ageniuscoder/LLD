@@ -123,6 +123,11 @@ class LogHandler{
     protected:
     LogHandler* next;
     vector<LogAppender*> appenders;
+    void notify(const LogMessage& msg){
+        for(auto &appender:appenders){
+                appender->appendMessage(msg);
+            }
+    }
     public:
     LogHandler(){
         next=nullptr;
@@ -140,9 +145,7 @@ class DEBUGHandler:public LogHandler{
     public:
     void handleLog(const LogMessage& msg){
         if(msg.getLevel()==LogLevel::DEBUG){
-            for(auto &appender:appenders){
-                appender->appendMessage(msg);
-            }
+            notify(msg);
         }else{
            if(next) next->handleLog(msg);
         }
@@ -152,9 +155,7 @@ class INFOHandler:public LogHandler{
     public:
     void handleLog(const LogMessage& msg){
         if(msg.getLevel()==LogLevel::INFO){
-            for(auto &appender:appenders){
-                appender->appendMessage(msg);
-            }
+            notify(msg);
         }else{
             if(next) next->handleLog(msg);
         }
@@ -164,9 +165,7 @@ class WARNINGHandler:public LogHandler{
     public:
     void handleLog(const LogMessage& msg){
         if(msg.getLevel()==LogLevel::WARNING){
-            for(auto &appender:appenders){
-                appender->appendMessage(msg);
-            }
+            notify(msg);
         }else{
             if(next) next->handleLog(msg);
         }
@@ -176,9 +175,7 @@ class ERRORHandler:public LogHandler{
     public:
     void handleLog(const LogMessage& msg){
         if(msg.getLevel()==LogLevel::ERROR){
-            for(auto &appender:appenders){
-                appender->appendMessage(msg);
-            }
+            notify(msg);
         }else{
             if(next) next->handleLog(msg);
         }
@@ -188,9 +185,7 @@ class FATALHandler:public LogHandler{
     public:
     void handleLog(const LogMessage& msg){
         if(msg.getLevel()==LogLevel::FATAL){
-            for(auto &appender:appenders){
-                appender->appendMessage(msg);
-            }
+            notify(msg);
         }else{
             if(next) next->handleLog(msg);
         }
