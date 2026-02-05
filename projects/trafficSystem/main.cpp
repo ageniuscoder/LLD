@@ -2,6 +2,8 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 using namespace std;
 using namespace std::chrono_literals;
@@ -11,6 +13,27 @@ using namespace std::chrono_literals;
 enum class Color { GREEN, YELLOW, RED };
 enum class Direction { EAST, WEST, NORTH, SOUTH };
 enum class Vehicle { AMBULANCE, FIRE_TRUCK };
+
+/* ================= UTILS ================= */
+
+string colorToStr(Color c) {
+    switch (c) {
+        case Color::GREEN: return "GREEN";
+        case Color::YELLOW: return "YELLOW";
+        case Color::RED: return "RED";
+    }
+    return "";
+}
+
+string dirToStr(Direction d) {
+    switch (d) {
+        case Direction::NORTH: return "NORTH";
+        case Direction::SOUTH: return "SOUTH";
+        case Direction::EAST:  return "EAST";
+        case Direction::WEST:  return "WEST";
+    }
+    return "";
+}
 
 /* ================= TRAFFIC SIGNAL ================= */
 
@@ -28,10 +51,8 @@ class Road {
     TrafficSignal signal;
 public:
     Road(Direction d) : dir(d) {}
-
     void setSignal(Color c) { signal.setColor(c); }
     Direction getDir() const { return dir; }
-    Color getSignal() const { return signal.getColor(); }
 };
 
 /* ================= SIGNAL GROUP ================= */
@@ -42,7 +63,12 @@ public:
     void addRoad(Road* r) { roads.push_back(r); }
 
     void setColor(Color c) {
-        for (auto r : roads) r->setSignal(c);
+        for (auto r : roads) {
+            r->setSignal(c);
+            cout << "[SIGNAL] Road "
+                 << dirToStr(r->getDir())
+                 << " -> " << colorToStr(c) << endl;
+        }
     }
 };
 
@@ -98,27 +124,14 @@ SignalState* RedState::next()    { static GreenState g; return &g; }
 
 class TimeStrategy {
 public:
-    virtual int greenTime(int load = 0) = 0;
+    virtual int greenTime() = 0;
     virtual int yellowTime() { return 5; }
     virtual ~TimeStrategy() = default;
 };
 
 class FixedTime : public TimeStrategy {
 public:
-    int greenTime(int = 0) override { return 10; }
-};
-
-/* ================= FORWARD DECL ================= */
-
-class TrafficController;
-
-/* ================= EMERGENCY SENSOR ================= */
-
-class EmergencySensor {
-    TrafficController* controller;
-public:
-    EmergencySensor(TrafficController* c) : controller(c) {}
-    void sense(Vehicle, Direction);
+    int greenTime() override { return 10; }
 };
 
 /* ================= CONTROLLER (SINGLETON) ================= */
@@ -133,6 +146,9 @@ class TrafficController {
 
     atomic<bool> emergency{false};
     Direction emergencyDir;
+
+    mutex mtx;
+    condition_variable cv;
 
     TrafficController() {
         static RedState r;
@@ -152,90 +168,137 @@ public:
     void setStrategy(TimeStrategy* s) { strategy = s; }
 
     void triggerEmergency(Direction d) {
-        emergency = true;
-        emergencyDir = d;
+        {
+            lock_guard<mutex> lock(mtx);
+            emergency = true;
+            emergencyDir = d;
+        }
+        cout << "\n🚨 EMERGENCY detected at "
+             << dirToStr(d) << " 🚨\n";
+        cv.notify_one(); // 🔥 immediate preemption
     }
+    void resetFSM(Direction greenDir) {
+        static RedState red;
+        state = &red;
 
+        if (greenDir == Direction::NORTH || greenDir == Direction::SOUTH) {
+            active = &intersection->NS();
+            inactive = &intersection->EW();
+        } else {
+            active = &intersection->EW();
+            inactive = &intersection->NS();
+        }
+    }
     void handleEmergency() {
+        unique_lock<mutex> lock(mtx);
+
+        cout << "[EMERGENCY] All signals RED\n";
         intersection->EW().setColor(Color::RED);
         intersection->NS().setColor(Color::RED);
 
-        if (emergencyDir == Direction::EAST || emergencyDir == Direction::WEST)
-            intersection->EW().setColor(Color::GREEN);
-        else
-            intersection->NS().setColor(Color::GREEN);
+        Direction greenDir;
 
+        if (emergencyDir == Direction::EAST || emergencyDir == Direction::WEST) {
+            cout << "[EMERGENCY] GREEN for EAST-WEST\n";
+            intersection->EW().setColor(Color::GREEN);
+            greenDir = emergencyDir;
+        } else {
+            cout << "[EMERGENCY] GREEN for NORTH-SOUTH\n";
+            intersection->NS().setColor(Color::GREEN);
+            greenDir = emergencyDir;
+        }
+
+        lock.unlock();
         this_thread::sleep_for(5s);
+
+        lock.lock();
+        cout << "[EMERGENCY] Cleared\n";
+
+        // 🔥 RESET THE FSM PROPERLY
+        resetFSM(greenDir);
+
         emergency = false;
+        cv.notify_one();
     }
 
     void run() {
         active = &intersection->NS();
         inactive = &intersection->EW();
 
+        cout << "🚦 Traffic Controller Started 🚦\n";
+
         while (true) {
+            unique_lock<mutex> lock(mtx);
+
             if (emergency) {
+                lock.unlock();
                 handleEmergency();
                 continue;
             }
 
+            cout << "\n=== NEW SIGNAL CYCLE ===\n";
+
             // GREEN
-            inactive->setColor(state->color());
-            state=state->next();
+            state = state->next();
+            cout << "[STATE] GREEN\n";
             active->setColor(state->color());
-            this_thread::sleep_for(seconds(strategy->greenTime()));
+            inactive->setColor(Color::RED);
+
+            if (cv.wait_for(lock, chrono::seconds(strategy->greenTime()),
+                            [&]() { return emergency.load(); }))
+                continue;
 
             // YELLOW
-            state=state->next();
+            state = state->next();
+            cout << "[STATE] YELLOW\n";
             active->setColor(state->color());
-            this_thread::sleep_for(seconds(strategy->yellowTime()));
+
+            if (cv.wait_for(lock, chrono::seconds(strategy->yellowTime()),
+                            [&]() { return emergency.load(); }))
+                continue;
 
             // RED
-            state=state->next();
+            state = state->next();
+            cout << "[STATE] RED\n";
             active->setColor(state->color());
+
             swap(active, inactive);
         }
     }
 };
 
-/* ================= SENSOR IMPLEMENTATION ================= */
+/* ================= EMERGENCY SENSOR ================= */
 
-void EmergencySensor::sense(Vehicle v, Direction d) {
-    switch(v){
-        case Vehicle::AMBULANCE:
+class EmergencySensor {
+    TrafficController* controller;
+public:
+    EmergencySensor(TrafficController* c) : controller(c) {}
+    void sense(Vehicle v, Direction d) {
+        if (v == Vehicle::AMBULANCE || v == Vehicle::FIRE_TRUCK)
             controller->triggerEmergency(d);
-            break;
-        case Vehicle::FIRE_TRUCK:
-            controller->triggerEmergency(d);
-            break;
     }
-}
+};
 
 /* ================= MAIN ================= */
 
 int main() {
-    // Roads
     Road east(Direction::EAST), west(Direction::WEST);
     Road north(Direction::NORTH), south(Direction::SOUTH);
 
-    // Intersection
     Intersection intersection;
     intersection.addRoad(&east);
     intersection.addRoad(&west);
     intersection.addRoad(&north);
     intersection.addRoad(&south);
 
-    // Controller
     TrafficController& controller = TrafficController::instance();
     controller.setIntersection(&intersection);
 
     FixedTime fixed;
     controller.setStrategy(&fixed);
 
-    // Emergency sensor
     EmergencySensor sensor(&controller);
 
-    // Emergency trigger thread
     thread emergencyThread([&]() {
         this_thread::sleep_for(15s);
         sensor.sense(Vehicle::AMBULANCE, Direction::NORTH);
