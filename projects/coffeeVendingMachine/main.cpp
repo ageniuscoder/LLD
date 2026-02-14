@@ -242,47 +242,35 @@ class Extra_Sugar:public Decorator{
     }
 };
 class CoffeeFactory{
-    protected:
-    static vector<unique_ptr<Coffee>> factory;
     public:
     virtual ~CoffeeFactory()=default;
 };
-vector<unique_ptr<Coffee>> CoffeeFactory::factory;
 class SimpleCoffee:public CoffeeFactory{
     public:
-    static Coffee* create(CoffeeType ctype){
+    static unique_ptr<Coffee> create(CoffeeType ctype){
         switch(ctype){
             case CoffeeType::CAPPUCCINO:
-                factory.push_back(make_unique<Cappuccino>());
-                return factory.back().get();
+                return make_unique<Cappuccino>();
             case CoffeeType::ESPRESSO:
-                factory.push_back(make_unique<Espresso>());
-                return factory.back().get();
+                return make_unique<Espresso>();
             case CoffeeType::LATTE:
-                factory.push_back(make_unique<Latte>());
-                return factory.back().get();
+                return make_unique<Latte>();
         }
         return nullptr;
     }
 };
 class ExtraSugarCoffee:public CoffeeFactory{
     public:
-    static Coffee* create(CoffeeType ctype){
+    static unique_ptr<Coffee> create(CoffeeType ctype){
         switch(ctype){
-            case CoffeeType::CAPPUCCINO:{
-                unique_ptr<Extra_Sugar> es=make_unique<Extra_Sugar>(make_unique<Cappuccino>());
-                factory.push_back(move(es));
-                return factory.back().get();
-            }
+            case CoffeeType::CAPPUCCINO:
+                return make_unique<Extra_Sugar>(make_unique<Cappuccino>());
+            
             case CoffeeType::ESPRESSO:{
-                unique_ptr<Extra_Sugar> es=make_unique<Extra_Sugar>(make_unique<Espresso>());
-                factory.push_back(move(es));
-                return factory.back().get();
+                return make_unique<Extra_Sugar>(make_unique<Espresso>());
             }
             case CoffeeType::LATTE:{
-                unique_ptr<Extra_Sugar> es=make_unique<Extra_Sugar>(make_unique<Latte>());
-                factory.push_back(move(es));
-                return factory.back().get();
+                return make_unique<Extra_Sugar>(make_unique<Latte>());
             }
         }
         return nullptr;
@@ -290,22 +278,16 @@ class ExtraSugarCoffee:public CoffeeFactory{
 };
 class CaremelSyrupCoffee:public CoffeeFactory{
     public:
-    static Coffee* create(CoffeeType ctype){
+    static unique_ptr<Coffee> create(CoffeeType ctype){
         switch(ctype){
             case CoffeeType::CAPPUCCINO:{
-                unique_ptr<CaremelSyrup> es=make_unique<CaremelSyrup>(make_unique<Cappuccino>());
-                factory.push_back(move(es));
-                return factory.back().get();
+                return make_unique<CaremelSyrup>(make_unique<Cappuccino>());
             }
             case CoffeeType::ESPRESSO:{
-                unique_ptr<CaremelSyrup> es=make_unique<CaremelSyrup>(make_unique<Espresso>());
-                factory.push_back(move(es));
-                return factory.back().get();
+                return make_unique<CaremelSyrup>(make_unique<Espresso>());
             }
             case CoffeeType::LATTE:{
-                unique_ptr<CaremelSyrup> es=make_unique<CaremelSyrup>(make_unique<Latte>());
-                factory.push_back(move(es));
-                return factory.back().get();
+                return make_unique<CaremelSyrup>(make_unique<Latte>());
             }
         }
         return nullptr;
@@ -317,7 +299,7 @@ class HasCoin;
 class Dispense;
 class CoffeeMachine{
     MachineState* state;
-    Coffee* selected;
+    unique_ptr<Coffee> selected;
     int coins;
     unique_ptr<Idle> idle;
     unique_ptr<HasCoin> hasCoin;
@@ -336,7 +318,7 @@ class CoffeeMachine{
     void addCoin(int c);
     int getCoin();
     bool ckStock(Ingredients type,int quan);
-    void setSelected(Coffee* c);
+    void setSelected(unique_ptr<Coffee> c);
     Coffee* getSelected();
     void reduceStock(Ingredients type,int quan);
     void reduceCoin(int c);
@@ -383,18 +365,16 @@ class Idle:public MachineState{
     }
 };
 class HasCoin:public MachineState{
-    void create(CoffeeType ctype,Topping ttype, Coffee* & c){
+    unique_ptr<Coffee> create(CoffeeType ctype,Topping ttype){
         switch(ttype){
             case Topping::NONE:
-                c=SimpleCoffee::create(ctype);
-                break;
+                return SimpleCoffee::create(ctype);
             case Topping::EXTRA_SUGAR:
-                c=ExtraSugarCoffee::create(ctype);
-                break;
+                return ExtraSugarCoffee::create(ctype);
             case Topping::CARAMEL_SYRUP:
-                c=CaremelSyrupCoffee::create(ctype);
-                break;
+                return CaremelSyrupCoffee::create(ctype);
         }
+        return nullptr;
     }
     bool ck(unordered_map<Ingredients, int> r){
         bool flag=true;
@@ -421,14 +401,18 @@ class HasCoin:public MachineState{
         return machine->getHasCoinState();
     }
     MachineState* selectItem(CoffeeType ctype,Topping ttype){
-        Coffee* c;
-        create(ctype,ttype,c);
+        unique_ptr<Coffee> c=move(create(ctype,ttype));
         auto reciep=c->getRecipe();
-        if(!ck(reciep) || machine->getCoin()<c->getPrice()){
-            cout<<"Insufficent Fund or Item not Available"<<endl;
-            return machine->getHasCoinState();
+        if(!ck(reciep) || machine->getCoin() < c->getPrice()){
+            cout << "Insufficient Fund or Item not Available\n";
+
+            int refund = machine->getCoin();
+            machine->reduceCoin(refund);
+            cout << "[Refunded]: " << refund << endl;
+
+            return machine->getIdleState();
         }
-        machine->setSelected(c);
+        machine->setSelected(move(c));
         return machine->getDispenseState();
     }
     MachineState* dispenseItem(){
@@ -470,8 +454,8 @@ class Dispense:public MachineState{
         if(remain>0){
             cout<<"[Amount] refunded: "<<remain<<endl;
         }
-        machine->setSelected(nullptr);
         cout<<"[Coffee] Dispensed: "<<c->getType()<<endl;
+         machine->setSelected(nullptr);
         return machine->getIdleState();
     }
 };
@@ -521,11 +505,11 @@ int CoffeeMachine::getCoin(){
 bool CoffeeMachine::ckStock(Ingredients type,int quan){
     return inventory.isSufficient(type,quan);
 }
-void CoffeeMachine::setSelected(Coffee* c){
-    selected=c;
+void CoffeeMachine::setSelected(unique_ptr<Coffee> c){
+    selected=move(c);
 }
 Coffee* CoffeeMachine::getSelected(){
-    return selected;
+    return selected.get();
 }
 void CoffeeMachine::reduceStock(Ingredients type,int quan){
     inventory.reduceStock(type,quan);
