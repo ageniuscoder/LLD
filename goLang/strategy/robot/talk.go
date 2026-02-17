@@ -6,12 +6,20 @@ type Talker interface {
 	Talk()
 }
 
-type NormalTalk struct{}
+type normalTalk struct{}
 
-func (n NormalTalk) Talk() {
+func NewNormalTalk() *normalTalk{
+	return &normalTalk{}
+}
+
+func (n normalTalk) Talk() {
 	fmt.Println("Normal Talk")
 }
-type NoTalk struct{}
-func (n NoTalk) Talk(){
+type noTalk struct{}
+
+func NewNoTalk() *noTalk{
+	return &noTalk{}
+}
+func (n noTalk) Talk(){
 	fmt.Println("No Talk")
 }
