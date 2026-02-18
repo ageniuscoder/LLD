@@ -1,4 +1,4 @@
-package main
+package main //code base with explicit forwarding
 
 import "fmt"
 

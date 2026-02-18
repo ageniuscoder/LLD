@@ -1,0 +1,62 @@
+type GunAbility struct {
+    c Character
+}
+
+This means:
+GunAbility has a field named c
+c is of type Character
+Nothing special happens
+To call methods:
+g.c.GetAbilities()
+There is no method promotion.
+Everything is explicit.
+No method forwarding
+
+
+Anonymous Field (Embedding)
+type GunAbility struct {
+    Character
+}
+This is embedding.
+There is:
+No field name
+Only a type
+Go automatically promotes methods
+Now you can call:
+g.GetAbilities()
+
+Instead of:
+g.Character.GetAbilities()
+
+The compiler rewrites it for you.
+
+It promotes methods from the embedded type into the outer type.
+So this:
+g.GetAbilities()
+Is compiled as:
+g.Character.GetAbilities()
+It’s syntactic sugar.
+Not inheritance.
+Not dynamic delegation.
+
+
+
+
+#important
+Embedding = compile-time method promotion. 
+
+Type Assertion = Runtime Capability Detection (works with interfaces)
+This:
+if shooter, ok := j.c.(Shooter); ok {
+    shooter.Shoot()
+}
+Is completely different.
+Here’s what happens:
+j.c is an interface value
+Interface stores (dynamic type, dynamic value)
+At runtime, Go checks:
+Does the dynamic type implement Shooter?
+If yes → success.
+If no → ok == false.
+That is runtime capability discovery.
+
