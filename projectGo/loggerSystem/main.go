@@ -1,29 +1,23 @@
 package main
 
-import (
-	"logger/appender"
-	"logger/formatter"
-	logs "logger/logger"
-)
+import "logger/config"
 
 func main() {
-	tfor := formatter.NewTextFormatter()
-	jfor:=formatter.NewJsonFormatter()
-	capp:=appender.NewConsoleAppender(jfor)
-	fapp,err:=appender.NewFileAppender("./logs/test.log",tfor)
-	if err!=nil{
+	cfg, err := config.Load("./logger.json")
+	if err != nil {
 		panic(err)
 	}
-	defer fapp.CloseFile()
 
-	system:=logs.GetInstance()
+	system,closers,err:=config.Build(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	for _,c:=range closers{
+		defer c()
+	}
+
 	defer system.Shutdown()
-	system.AddAppender("debug",capp)
-	system.AddAppender("info",capp)
-	system.AddAppender("warning",capp)
-	system.AddAppender("warning",fapp)
-	system.AddAppender("error",capp)
-	system.AddAppender("error",fapp)
 
 	// ---- TEST LOGGING ----
 

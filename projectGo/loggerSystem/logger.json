@@ -1,0 +1,75 @@
+{
+  "buffer": 512,
+  "levels": [
+    {
+      "level": "debug",
+      "appenders": [
+        {
+          "name": "console-debug",
+          "type": "console",
+          "formatter": {
+            "name": "jsonfmt",
+            "type": "json"
+          }
+        }
+      ]
+    },
+    {
+      "level": "info",
+      "appenders": [
+        {
+          "name": "console-info",
+          "type": "console",
+          "formatter": {
+            "name": "jsonfmt",
+            "type": "json"
+          }
+        }
+      ]
+    },
+    {
+      "level": "warning",
+      "appenders": [
+        {
+          "name": "console-warn",
+          "type": "console",
+          "formatter": {
+            "name": "jsonfmt",
+            "type": "json"
+          }
+        },
+        {
+          "name": "file-warn",
+          "type": "file",
+          "path": "./logs/warn.log",
+          "formatter": {
+            "name": "textfmt",
+            "type": "text"
+          }
+        }
+      ]
+    },
+    {
+      "level": "error",
+      "appenders": [
+        {
+          "name": "console-error",
+          "type": "console",
+          "formatter": {
+            "name": "jsonfmt",
+            "type": "json"
+          }
+        },
+        {
+          "name": "file-error",
+          "type": "file",
+          "path": "./logs/error.log",
+          "formatter": {
+            "name": "textfmt",
+            "type": "text"
+          }
+        }
+      ]
+    }
+  ]
+}

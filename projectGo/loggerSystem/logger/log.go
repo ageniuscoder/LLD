@@ -21,7 +21,7 @@ var(
 	once sync.Once
 )
 
-func GetInstance() *Logger{
+func GetInstance(buffer int) *Logger{
 	once.Do(func() {
 		mp:=make(map[string]handler.LogHandler)
 		mp["debug"]=handler.NewDebugHandler()
@@ -30,7 +30,7 @@ func GetInstance() *Logger{
 		mp["error"]=handler.NewErrorHandler()
 		instance=&Logger{
 			handlers: mp,
-			logbuffer: make(chan *logmsg.LogMsg,512),
+			logbuffer: make(chan *logmsg.LogMsg,buffer),
 			done: make(chan struct{}),
 		}
 		instance.handlers["debug"].SetNext(instance.handlers["info"])
