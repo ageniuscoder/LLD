@@ -11,6 +11,21 @@ const (
 	FATAL
 )
 
+func ParseLevel(s string) (LogLevel, bool) {
+	switch s {
+	case "debug":
+		return DEBUG, true
+	case "info":
+		return INFO, true
+	case "warning":
+		return WARNING, true
+	case "error":
+		return ERROR, true
+	case "fatal":
+		return FATAL, true
+	}
+	return 0, false
+}
 func (l LogLevel) ToStr() string {
 	switch l {
 	case DEBUG:

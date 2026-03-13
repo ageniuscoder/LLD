@@ -14,6 +14,7 @@ type Logger struct {
 	logbuffer chan *logmsg.LogMsg
 	wg sync.WaitGroup
 	done chan struct{}
+	min_level logmsg.LogLevel
 }
 
 var(
@@ -21,23 +22,28 @@ var(
 	once sync.Once
 )
 
-func GetInstance(buffer int) *Logger{
+func GetInstance(buffer int,min_level logmsg.LogLevel) *Logger{
 	once.Do(func() {
 		mp:=make(map[string]handler.LogHandler)
 		mp["debug"]=handler.NewDebugHandler()
 		mp["info"]=handler.NewInfoHandler()
 		mp["warning"]=handler.NewWarningHandler()
 		mp["error"]=handler.NewErrorHandler()
+		minHead,ok:=mp[min_level.ToStr()]
+		if !ok{
+			minHead=mp["debug"]
+		}
 		instance=&Logger{
 			handlers: mp,
 			logbuffer: make(chan *logmsg.LogMsg,buffer),
 			done: make(chan struct{}),
+			head: minHead,
+			min_level: min_level,
 		}
 		instance.handlers["debug"].SetNext(instance.handlers["info"])
 		instance.handlers["info"].SetNext(instance.handlers["warning"])
 		instance.handlers["warning"].SetNext(instance.handlers["error"])
 		instance.handlers["error"].SetNext(nil)
-		instance.head=instance.handlers["debug"]
 		instance.wg.Add(1)
 		go instance.worker()
 	})
@@ -82,6 +88,9 @@ func (l *Logger) AddAppender(level string,appender appender.LogAppender){
 }
 
 func (l *Logger) log(level logmsg.LogLevel,msg string){
+	if level<l.min_level{
+		return
+	}
 	m:=logmsg.NewLogMsg(level,msg)
 	select{
 	case <-l.done:

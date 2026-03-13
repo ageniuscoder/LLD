@@ -13,9 +13,6 @@ func (jp *JsonParser) Parse(data []byte) (*LoggerConfig, error) {
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("json parser: %w", err)
 	}
-	if cfg.Buffer==0{
-		cfg.Buffer=512
-	}
 	return cfg, nil
 }
 

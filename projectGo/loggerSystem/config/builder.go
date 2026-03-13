@@ -5,12 +5,16 @@ import (
 	"logger/appender"
 	"logger/formatter"
 	logs "logger/logger"
+	"logger/logmsg"
 )
 
 func Build(cfg *LoggerConfig) (*logs.Logger,[]func(),error){
-	system:=logs.GetInstance(cfg.Buffer)
-
 	var closers []func()
+	level,ok:=logmsg.ParseLevel(cfg.MinLevel)
+	if !ok{
+		return nil,closers,fmt.Errorf("Config: not valid log levle: %q",level.ToStr())
+	}
+	system:=logs.GetInstance(cfg.Buffer,level)
 
 	for _,lv:=range cfg.Levels{
 		for _,ac:=range lv.Appenders{

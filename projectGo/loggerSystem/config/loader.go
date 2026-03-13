@@ -63,6 +63,12 @@ func Load(path string) (*LoggerConfig, error) {
 	if err!=nil{
 		return nil,fmt.Errorf("parser error: %w",err)
 	}
+	if cfg.Buffer==0{    //adding default buffer size
+		cfg.Buffer=512
+	}
+	if cfg.MinLevel==""{   //default level
+		cfg.MinLevel="debug"
+	}
 	if err:=validateStruct(cfg); err!=nil{
 		return nil,fmt.Errorf("validation error: %w",err)
 	}

@@ -1,5 +1,6 @@
 {
   "buffer": 512,
+  "min_level": "warning",
   "levels": [
     {
       "level": "debug",
