@@ -1,8 +1,9 @@
 package config
 
 type LoggerConfig struct {
-	Levels []levelConfig `json:"levels" validate:"required,min=1,dive"`
-	Buffer int           `json:"buffer" validate:"gte=0,lte=100000"`
+	Levels   []levelConfig `json:"levels" validate:"required,min=1,dive"`
+	Buffer   int           `json:"buffer" validate:"gte=0,lte=100000"`
+	MinLevel string        `json:"min_level" validate:"oneof=debug info warning error"`
 }
 
 type formatterConfig struct {
