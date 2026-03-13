@@ -9,7 +9,7 @@ import (
 )
 
 type LogAppender interface{
-	AppendMsg(msg *logmsg.LogMsg)
+	AppendMsg(msg *logmsg.LogMsg) error
 }
 
 type ConsoleAppender struct{
@@ -22,9 +22,10 @@ func NewConsoleAppender(formatter formatter.LogFormatter) *ConsoleAppender{
 	}
 }
 
-func (ca *ConsoleAppender) AppendMsg(msg *logmsg.LogMsg){
+func (ca *ConsoleAppender) AppendMsg(msg *logmsg.LogMsg) error {
 	m:=ca.formatter.Format(msg)
 	fmt.Println(m)
+	return nil
 }
 
 type FileAppender struct{
@@ -49,14 +50,15 @@ func NewFileAppender(path string,formatter formatter.LogFormatter) (*FileAppende
 	return fa,nil
 }
 
-func (fa *FileAppender) AppendMsg(msg *logmsg.LogMsg){
+func (fa *FileAppender) AppendMsg(msg *logmsg.LogMsg) error {
 	m:=fa.formatter.Format(msg)
 	fa.mu.Lock()
 	defer fa.mu.Unlock()
 	_,err:=fa.file.WriteString(m+"\n")
 	if err!=nil{
-		panic(err)
+		return fmt.Errorf("Appender: can,t write log to file: %w",err)
 	}
+	return nil
 }
 
 func (fa *FileAppender) CloseFile(){

@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"logger/appender"
 	"logger/logmsg"
+	"os"
 	"sync"
 )
 
@@ -34,7 +36,7 @@ func (bh *BaseHandler) AddAppender(appender appender.LogAppender){
 
 // Notify fans out to all appenders concurrently.
 // The slice is copied under RLock so the lock isn't held during I/O.
-func (bh *BaseHandler) Notify(msg *logmsg.LogMsg){  //imp
+func (bh *BaseHandler) Notify(msg *logmsg.LogMsg)  {  //imp
 	bh.mu.RLock()
 	// Copy slice under read lock to avoid holding lock during I/O
 	appenders := make([]appender.LogAppender, len(bh.appenders))
@@ -42,7 +44,10 @@ func (bh *BaseHandler) Notify(msg *logmsg.LogMsg){  //imp
 	bh.mu.RUnlock()
 
 	for _,ap:=range appenders{   
-		ap.AppendMsg(msg)
+		err:=ap.AppendMsg(msg)
+		if err!=nil{
+			fmt.Fprintf(os.Stderr, "logger: appender error: %v\n", err)   //fixed here
+		}
 	}
 }
 // Forward reads next under RLock into a local variable, then calls it.
