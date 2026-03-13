@@ -1,6 +1,8 @@
 {
   "buffer": 512,
   "min_level": "warning",
+  "batch_size": 100,
+  "flush_interval": 500,
   "levels": [
     {
       "level": "debug",
@@ -8,10 +10,7 @@
         {
           "name": "console-debug",
           "type": "console",
-          "formatter": {
-            "name": "jsonfmt",
-            "type": "json"
-          }
+          "formatter": { "name": "jsonfmt", "type": "json" }
         }
       ]
     },
@@ -21,10 +20,7 @@
         {
           "name": "console-info",
           "type": "console",
-          "formatter": {
-            "name": "jsonfmt",
-            "type": "json"
-          }
+          "formatter": { "name": "jsonfmt", "type": "json" }
         }
       ]
     },
@@ -34,19 +30,13 @@
         {
           "name": "console-warn",
           "type": "console",
-          "formatter": {
-            "name": "jsonfmt",
-            "type": "json"
-          }
+          "formatter": { "name": "jsonfmt", "type": "json" }
         },
         {
           "name": "file-warn",
           "type": "file",
           "path": "./logs/warn.log",
-          "formatter": {
-            "name": "textfmt",
-            "type": "text"
-          }
+          "formatter": { "name": "textfmt", "type": "text" }
         }
       ]
     },
@@ -56,19 +46,13 @@
         {
           "name": "console-error",
           "type": "console",
-          "formatter": {
-            "name": "jsonfmt",
-            "type": "json"
-          }
+          "formatter": { "name": "jsonfmt", "type": "json" }
         },
         {
           "name": "file-error",
           "type": "file",
           "path": "./logs/error.log",
-          "formatter": {
-            "name": "textfmt",
-            "type": "text"
-          }
+          "formatter": { "name": "textfmt", "type": "text" }
         }
       ]
     }

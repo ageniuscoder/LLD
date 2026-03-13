@@ -6,6 +6,7 @@ import (
 	"logger/formatter"
 	logs "logger/logger"
 	"logger/logmsg"
+	"time"
 )
 
 func Build(cfg *LoggerConfig) (*logs.Logger,[]func(),error){
@@ -14,7 +15,7 @@ func Build(cfg *LoggerConfig) (*logs.Logger,[]func(),error){
 	if !ok{
 		return nil,closers,fmt.Errorf("Config: not valid log levle: %q",level.ToStr())
 	}
-	system:=logs.GetInstance(cfg.Buffer,level)
+	system:=logs.GetInstance(cfg.Buffer,level,cfg.BatchSize,time.Duration(cfg.FlushInterval)*time.Millisecond)
 
 	for _,lv:=range cfg.Levels{
 		for _,ac:=range lv.Appenders{

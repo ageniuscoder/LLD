@@ -69,6 +69,12 @@ func Load(path string) (*LoggerConfig, error) {
 	if cfg.MinLevel==""{   //default level
 		cfg.MinLevel="debug"
 	}
+	if cfg.BatchSize==0{   //default batch size
+		cfg.BatchSize=100
+	}
+	if cfg.FlushInterval==0{  //default flush time
+		cfg.FlushInterval=500
+	}
 	if err:=validateStruct(cfg); err!=nil{
 		return nil,fmt.Errorf("validation error: %w",err)
 	}

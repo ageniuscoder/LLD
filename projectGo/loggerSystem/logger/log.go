@@ -5,6 +5,7 @@ import (
 	"logger/handler"
 	"logger/logmsg"
 	"sync"
+	"time"
 )
 
 //singleton
@@ -15,6 +16,8 @@ type Logger struct {
 	wg sync.WaitGroup
 	done chan struct{}
 	min_level logmsg.LogLevel
+	batchSize int
+	flushInterval time.Duration
 }
 
 var(
@@ -22,7 +25,7 @@ var(
 	once sync.Once
 )
 
-func GetInstance(buffer int,min_level logmsg.LogLevel) *Logger{
+func GetInstance(buffer int,min_level logmsg.LogLevel,batchSize int,flushInterval time.Duration) *Logger{
 	once.Do(func() {
 		mp:=make(map[string]handler.LogHandler)
 		mp["debug"]=handler.NewDebugHandler()
@@ -39,15 +42,53 @@ func GetInstance(buffer int,min_level logmsg.LogLevel) *Logger{
 			done: make(chan struct{}),
 			head: minHead,
 			min_level: min_level,
+			batchSize: batchSize,
+			flushInterval: flushInterval,
 		}
 		instance.handlers["debug"].SetNext(instance.handlers["info"])
 		instance.handlers["info"].SetNext(instance.handlers["warning"])
 		instance.handlers["warning"].SetNext(instance.handlers["error"])
 		instance.handlers["error"].SetNext(nil)
 		instance.wg.Add(1)
-		go instance.worker()
+		go instance.batchWorker()
 	})
 	return instance
+}
+
+// worker is the single background goroutine that drains the channel.
+// Single worker = guaranteed FIFO ordering of all log messages.
+//it logs in batches
+func (l *Logger) batchWorker(){
+	defer l.wg.Done()
+	batch:=make([]*logmsg.LogMsg,0,l.batchSize)
+	ticker:=time.NewTicker(l.flushInterval)
+	defer ticker.Stop()
+	for{
+		select {
+		case msg:=<-l.logbuffer:
+			batch = append(batch, msg)
+			if len(batch)>=l.batchSize {
+				l.head.HandleBatch(batch)
+				batch=batch[:0]
+				ticker.Reset(l.flushInterval)
+			}
+		case <-ticker.C:
+			l.head.HandleBatch(batch)
+			batch=batch[:0]
+		case <-l.done:     //logger is shutdown drain the buffer,bcz logbuffer is never closed
+		for{
+			select{
+			case msg:=<-l.logbuffer:
+				batch = append(batch, msg)
+			default:
+				l.head.HandleBatch(batch)
+				batch=batch[:0]
+				return
+			}
+		}
+		}
+	
+	}
 }
 
 // worker is the single background goroutine that drains the channel.

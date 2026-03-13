@@ -10,6 +10,7 @@ import (
 
 type LogHandler interface{
 	HandleLog(msg *logmsg.LogMsg)
+	HandleBatch(msgs []*logmsg.LogMsg)
 	SetNext(next LogHandler)
 	AddAppender(appender appender.LogAppender)
 	// Notify(msg *logmsg.LogMsg)
@@ -50,6 +51,19 @@ func (bh *BaseHandler) Notify(msg *logmsg.LogMsg)  {  //imp
 		}
 	}
 }
+
+func (bh *BaseHandler) NotifyBatch(msgs []*logmsg.LogMsg) {
+	bh.mu.RLock()
+	appenders := make([]appender.LogAppender, len(bh.appenders))
+	copy(appenders, bh.appenders)
+	bh.mu.RUnlock()
+
+	for _,ap:=range appenders{
+		if err:=ap.AppendBatch(msgs); err!=nil{
+			fmt.Fprintf(os.Stderr,"logger: appender error: %v\n", err)
+		}
+	}
+}
 // Forward reads next under RLock into a local variable, then calls it.
 // This avoids reading bh.next a second time outside the lock.
 func (bh *BaseHandler) Forward(msg *logmsg.LogMsg){
@@ -60,6 +74,32 @@ func (bh *BaseHandler) Forward(msg *logmsg.LogMsg){
 	if next!=nil{
 		next.HandleLog(msg)
 	}
+}
+
+func (bh *BaseHandler) ForwardBatch(msgs []*logmsg.LogMsg){
+	bh.mu.RLock()  
+	next := bh.next
+	bh.mu.RUnlock()
+
+	if next!=nil{
+		next.HandleBatch(msgs)
+	}
+}
+
+func (bh *BaseHandler) GetMineAndOtherBatch(level logmsg.LogLevel,msgs []*logmsg.LogMsg) ([]*logmsg.LogMsg,[]*logmsg.LogMsg){
+	mine:=make([]*logmsg.LogMsg,0)
+	other:=make([]*logmsg.LogMsg,0)
+
+	for _,msg:=range msgs{
+		if msg.Level==level{
+			mine = append(mine, msg)
+		}else{
+			other = append(other, msg)
+		}
+	}
+
+	return mine,other
+
 }
 
 type DebugHandler struct{
@@ -78,6 +118,15 @@ func (dh *DebugHandler) HandleLog(msg *logmsg.LogMsg){
 	dh.Forward(msg)
 }
 
+func (dh *DebugHandler) HandleBatch(msgs []*logmsg.LogMsg){
+	mine,other:=dh.GetMineAndOtherBatch(logmsg.DEBUG,msgs)
+
+	if len(mine)>0{
+		dh.NotifyBatch(mine)
+	}
+	dh.ForwardBatch(other)
+}
+
 type InfoHandler struct{
 	BaseHandler
 }
@@ -92,6 +141,15 @@ func (ih *InfoHandler) HandleLog(msg *logmsg.LogMsg){
 		return
 	}
 	ih.Forward(msg)
+}
+
+func (ih *InfoHandler) HandleBatch(msgs []*logmsg.LogMsg){
+	mine,other:=ih.GetMineAndOtherBatch(logmsg.INFO,msgs)
+
+	if len(mine)>0{
+		ih.NotifyBatch(mine)
+	}
+	ih.ForwardBatch(other)
 }
 
 type WarningHandler struct{
@@ -110,6 +168,15 @@ func (wh *WarningHandler) HandleLog(msg *logmsg.LogMsg){
 	wh.Forward(msg)
 }
 
+func (wh *WarningHandler) HandleBatch(msgs []*logmsg.LogMsg){
+	mine,other:=wh.GetMineAndOtherBatch(logmsg.WARNING,msgs)
+
+	if len(mine)>0{
+		wh.NotifyBatch(mine)
+	}
+	wh.ForwardBatch(other)
+}
+
 type ErrorHandler struct{
 	BaseHandler
 }
@@ -124,4 +191,13 @@ func (eh *ErrorHandler) HandleLog(msg *logmsg.LogMsg){
 		return
 	}
 	eh.Forward(msg)
+}
+
+func (eh *ErrorHandler) HandleBatch(msgs []*logmsg.LogMsg){
+	mine,other:=eh.GetMineAndOtherBatch(logmsg.ERROR,msgs)
+
+	if len(mine)>0{
+		eh.NotifyBatch(mine)
+	}
+	eh.ForwardBatch(other)
 }
