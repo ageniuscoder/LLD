@@ -11,15 +11,15 @@ func nextBidId() int64 {
 	return atomic.AddInt64(&BidId, 1)
 }
 
-type bid struct{
+type Bid struct{
 	id string
 	owner string
 	itemId string
 	price int
 }
 
-func NewBid(uid string,itemId string,price int) *bid{
-	return &bid{
+func NewBid(uid string,itemId string,price int) *Bid{
+	return &Bid{
 		id: "bid"+strconv.FormatInt(nextBidId(),10),
 		owner: uid,
 		itemId: itemId,
@@ -27,18 +27,18 @@ func NewBid(uid string,itemId string,price int) *bid{
 	}
 }
 
-func (b *bid) GetId() string{
+func (b *Bid) GetId() string{
 	return b.id
 }
 
-func (b *bid) GetOwner() string{
+func (b *Bid) GetOwner() string{
 	return b.owner
 }
 
-func (b *bid) GetBidItem() string{
+func (b *Bid) GetBidItem() string{
 	return b.itemId
 }
 
-func (b *bid) GetPrice() int{
+func (b *Bid) GetPrice() int{
 	return b.price
 }
