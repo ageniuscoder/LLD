@@ -2,96 +2,122 @@ package main
 
 import (
 	"auctionapp/auction"
-	"auctionapp/notification"
 	"auctionapp/user"
 	"fmt"
+	"math/rand"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 func main() {
 	fmt.Println("==============================================")
-	fmt.Println("          Auction App — Demo Run             ")
+	fmt.Println("   Auction App — Concurrency Stress Test      ")
 	fmt.Println("==============================================")
 
-	// ── 1. Dependency Injection ───────────────────────────────────────────────
-	// Each subsystem is constructed independently and injected into the Facade.
-	// Swapping either for a mock in tests requires zero changes to the Facade.
+	// ── 1. Setup App ──────────────────────────────────────────────────────────
 	um := user.NewUserManager()
 	as := auction.NewAuctionService()
 	app := NewAuctionApp(um, as)
 
 	// ── 2. Register users ─────────────────────────────────────────────────────
-	fmt.Println("\n--- Registering Users ---")
-	sellerUid  := app.RegisterUser("Alice")    // item owner / seller
-	bobUid     := app.RegisterUser("Bob")      // bidder
-	charlieUid := app.RegisterUser("Charlie")  // bidder
-	dianaUid   := app.RegisterUser("Diana")    // bidder
+	sellerUid := app.RegisterUser("Alice")
+	bidders := []string{
+		app.RegisterUser("Bob"),
+		app.RegisterUser("Charlie"),
+		app.RegisterUser("Diana"),
+		app.RegisterUser("Eve"),
+		app.RegisterUser("Frank"),
+	}
 
-	// ── 3. Create auction (Facade hides BidItem construction) ─────────────────
-	fmt.Println("\n--- Creating Auction ---")
+	// ── 3. Create & Start Auction ─────────────────────────────────────────────
+	// We omit notifiers here to prevent the console from being flooded with 
+	// thousands of print statements during the load test.
 	auctionId, err := app.CreateAuction(
 		sellerUid,
-		"Vintage Guitar",
-		"1962 Fender Stratocaster — mint condition",
-		500,             // base price
-		10*time.Second,  // auto-closes after 10 s
-		notification.NewInAppNotification(), // Observer / Strategy — channel 1
-		notification.NewEmailNotification(), // Observer / Strategy — channel 2
+		"Rolex Watch",
+		"Submariner Date",
+		1000,           // Base Price
+		3*time.Second,  // Closes very fast (3 seconds) to test TOCTOU race condition
 	)
 	mustOk(err)
-	fmt.Printf("Auction created: %s\n", auctionId)
 
-	// ── 4. Start ──────────────────────────────────────────────────────────────
 	fmt.Println("\n--- Starting Auction ---")
 	mustOk(app.StartAuction(auctionId))
 
-	// ── 5. Place bids ─────────────────────────────────────────────────────────
-	fmt.Println("\n--- Placing Bids ---")
-	placeBid(app, auctionId, bobUid,     550) // ✓ above base price
-	placeBid(app, auctionId, charlieUid, 520) // ✗ below current max
-	placeBid(app, auctionId, charlieUid, 600) // ✓
-	placeBid(app, auctionId, dianaUid,   600) // ✗ not strictly greater
-	placeBid(app, auctionId, dianaUid,   750) // ✓ Diana leads
-	placeBid(app, auctionId, bobUid,     800) // ✓ Bob reclaims lead
+	// ── 4. Concurrency Test Setup ─────────────────────────────────────────────
+	var wg sync.WaitGroup
+	var successfulBids int32 // Use atomic counter to track how many bids actually went through
+	var failedBids int32
 
+	totalConcurrentBids := 1000 // 1000 simultaneous bid attempts
 
+	fmt.Printf("\n--- Launching %d Concurrent Bids & Readers ---\n", totalConcurrentBids)
 
-	time.Sleep(15*time.Second)
+	// ── 5. Spawn Concurrent Bidders (Writers) ─────────────────────────────────
+	for i := 0; i < totalConcurrentBids; i++ {
+		wg.Add(1)
+		go func(bidderId string) {
+			defer wg.Done()
+			
+			// Generate a random bid price between 1000 and 5000
+			randomPrice := 1000 + rand.Intn(4000)
 
-	// ── 6. Live state ─────────────────────────────────────────────────────────
-	fmt.Println("\n--- Current Highest Bid ---")
+			err := app.PlaceBid(auctionId, bidderId, randomPrice)
+			if err == nil {
+				atomic.AddInt32(&successfulBids, 1)
+			} else {
+				atomic.AddInt32(&failedBids, 1)
+			}
+		}(bidders[i%len(bidders)]) // Round-robin through available bidders
+	}
+
+	// ── 6. Spawn Concurrent Readers ───────────────────────────────────────────
+	// While bids are happening, constantly try to read the highest bid and history
+	// to ensure read/write locks are protecting the state without deadlocking.
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Rapidly check state 10 times per goroutine
+			for j := 0; j < 10; j++ {
+				_, _ = app.GetHighestBid(auctionId)
+				// We intentionally ignore the error here to not clutter the console
+				// but running this method heavily tests the slice read locks.
+				_ = app.PrintBidHistory(auctionId) 
+				time.Sleep(5 * time.Millisecond)
+			}
+		}()
+	}
+
+	// ── 7. Wait for all operations to finish ──────────────────────────────────
+	wg.Wait()
+	fmt.Println("\n--- All Concurrent Operations Finished ---")
+	
+	fmt.Printf("Successful Bids: %d\n", successfulBids)
+	fmt.Printf("Failed/Rejected Bids: %d (due to being lower than max, or auction closed)\n", failedBids)
+
+	// Wait to ensure the auto-close timer fires
+	fmt.Println("\nWaiting for auction timer to automatically close...")
+	time.Sleep(4 * time.Second)
+
+	// ── 8. Final Results ──────────────────────────────────────────────────────
+	fmt.Println("\n==============================================")
+	fmt.Println("                  RESULTS                     ")
+	fmt.Println("==============================================")
+
 	highest, err := app.GetHighestBid(auctionId)
 	mustOk(err)
-	fmt.Printf("Highest bid: %d\n", highest)
+	fmt.Printf("Final Highest Bid: %d\n", highest)
 
-	// ── 8. Results ────────────────────────────────────────────────────────────
-	fmt.Println("\n--- Bid History ---")
-	mustOk(app.PrintBidHistory(auctionId))
-
-	fmt.Println("\n--- Winner ---")
 	winner, err := app.GetWinner(auctionId)
-	mustOk(err)
-	fmt.Printf("Winner: %s\n", winner)
-
-	// ── 9. Edge-case guard: bid after close ───────────────────────────────────
-	fmt.Println("\n--- Bid after close (should fail) ---")
-	placeBid(app, auctionId, charlieUid, 999)
-
-	// ── 10. Edge-case guard: unregistered user bids ───────────────────────────
-	fmt.Println("\n--- Unregistered user bids (should fail) ---")
-	placeBid(app, auctionId, "ghost-uid", 1000)
-
-	fmt.Println("\n==============================================")
-	fmt.Println("                   Done                      ")
-	fmt.Println("==============================================")
-}
-
-func placeBid(app *AuctionApp, auctionId, uid string, price int) {
-	if err := app.PlaceBid(auctionId, uid, price); err != nil {
-		fmt.Printf("  ✗ bid uid=%-8s price=%-5d → %v\n", uid, price, err)
+	if err != nil {
+		fmt.Printf("Winner Error: %v\n", err)
 	} else {
-		fmt.Printf("  ✓ bid uid=%-8s price=%d\n", uid, price)
+		fmt.Printf("Winner: %s\n", winner)
 	}
+	
+	fmt.Println("==============================================")
 }
 
 func mustOk(err error) {

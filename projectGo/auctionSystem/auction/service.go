@@ -6,6 +6,7 @@ import (
 	"auctionapp/notification"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -22,6 +23,7 @@ func nextAuctionId() string {
 
 type AuctionService struct {
 	auctions map[string]*Auction // auctionId -> *Auction
+	mu sync.RWMutex
 }
 
 func NewAuctionService() *AuctionService {
@@ -40,7 +42,8 @@ func (as *AuctionService) CreateAuction(item *bid.BidItem, dur time.Duration) (s
 	if dur <= 0 {
 		return "", fmt.Errorf("auction duration must be positive")
 	}
-
+	as.mu.Lock()
+	defer as.mu.Unlock()
 	auc := NewAuction(item, dur)
 	auctionId := nextAuctionId()
 	as.auctions[auctionId] = auc
@@ -55,16 +58,20 @@ func (as *AuctionService) CreateAuction(item *bid.BidItem, dur time.Duration) (s
 // It also schedules an automatic close after the configured duration
 // using a background goroutine.
 func (as *AuctionService) StartAuction(auctionId string) error {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return err
 	}
-	if auc.status != enum.PENDING {
-		return fmt.Errorf("auction %s must be PENDING to start (current: %v)", auctionId, auc.status)
+	// FIX: Delegated the state-check to the Auction object itself.
+	// This prevents the TOCTOU race condition where two threads try to start it.
+	if err := auc.Start(); err != nil {
+		return fmt.Errorf("failed to start auction %s: %v", auctionId, err)
 	}
 
-	auc.UpdateStatus(enum.ACTIVE)
 	fmt.Printf("[AuctionService]: Auction %s is now ACTIVE (duration: %s)\n", auctionId, auc.duration)
+
 
 	// Auto-close after duration expires
 	time.AfterFunc(auc.duration,func() {
@@ -79,12 +86,11 @@ func (as *AuctionService) StartAuction(auctionId string) error {
 // PlaceBid lets a user place a bid on an ACTIVE auction.
 // Delegates validation and observer notification to Auction.DoBid.
 func (as *AuctionService) PlaceBid(auctionId string, userId string, price int) error {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return err
-	}
-	if auc.status != enum.ACTIVE {
-		return fmt.Errorf("auction %s is not active — bids cannot be placed", auctionId)
 	}
 	if userId == "" {
 		return fmt.Errorf("user ID cannot be empty")
@@ -100,21 +106,22 @@ func (as *AuctionService) PlaceBid(auctionId string, userId string, price int) e
 // The winner is the owner of the highest bid. If no bids were placed,
 // the auction closes with no winner.
 func (as *AuctionService) CloseAuction(auctionId string) error {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return err
 	}
-	if auc.status == enum.CLOSED {
-		return fmt.Errorf("auction %s is already closed", auctionId)
+	// FIX: Delegated closing logic to Auction to ensure thread safety
+	// resolving the winner and changing status atomically.
+	winner, winningBid, err := auc.Close()
+	if err != nil {
+		return err
 	}
 
-	auc.UpdateStatus(enum.CLOSED)
-
-	winner := resolveWinner(auc)
 	if winner != "" {
-		auc.DecleareWinner(winner)
 		fmt.Printf("[AuctionService]: Auction %s CLOSED | Winner: %s | Winning bid: %d\n",
-			auctionId, winner, auc.maxBid)
+			auctionId, winner, winningBid)
 	} else {
 		fmt.Printf("[AuctionService]: Auction %s CLOSED | No bids were placed\n", auctionId)
 	}
@@ -125,7 +132,9 @@ func (as *AuctionService) CloseAuction(auctionId string) error {
 // AddNotifier registers a Notifier (InApp, Email …) on an auction.
 // Follows the Observer pattern — every new bid triggers all registered notifiers.
 func (as *AuctionService) AddNotifier(auctionId string, n notification.Notifier) error {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return err
 	}
@@ -145,25 +154,31 @@ func (as *AuctionService) AddNotifiers(auctionId string, notifiers ...notificati
 
 // GetAuctionStatus returns the current AuctionStatus for the given ID.
 func (as *AuctionService) GetAuctionStatus(auctionId string) (enum.AuctionStatus, error) {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return 0, err
 	}
-	return auc.status, nil
+	return auc.GetStatus(), nil
 }
 
 // GetCurrentHighestBid returns the highest bid price seen so far.
 func (as *AuctionService) GetCurrentHighestBid(auctionId string) (int, error) {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return 0, err
 	}
-	return auc.maxBid, nil
+	return auc.GetMaxBid(), nil
 }
 
 // GetWinner returns the winning user ID. Only valid after the auction is CLOSED.
 func (as *AuctionService) GetWinner(auctionId string) (string, error) {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return "", err
 	}
@@ -178,28 +193,23 @@ func (as *AuctionService) GetWinner(auctionId string) (string, error) {
 
 // GetBidHistory returns the full ordered list of bids placed on an auction.
 func (as *AuctionService) GetBidHistory(auctionId string) ([]*bid.Bid, error) {
+	as.mu.RLock()
 	auc, err := as.getAuction(auctionId)
+	as.mu.RUnlock()
 	if err != nil {
 		return nil, err
 	}
-	return auc.bids, nil
+	return auc.GetBids(), nil
 }
 
 // ── private helpers ───────────────────────────────────────────────────────────
 
 func (as *AuctionService) getAuction(auctionId string) (*Auction, error) {
+	// Note: Caller is responsible for holding as.mu.RLock()
 	auc, ok := as.auctions[auctionId]
+	
 	if !ok {
 		return nil, fmt.Errorf("auction %s not found", auctionId)
 	}
 	return auc, nil
-}
-
-// resolveWinner picks the last bid in the slice — because DoBid only appends
-// when price >= maxBid, the tail is always the winning bid.
-func resolveWinner(auc *Auction) string {
-	if len(auc.bids) == 0 {
-		return ""
-	}
-	return auc.bids[len(auc.bids)-1].GetOwner()
 }
