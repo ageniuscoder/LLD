@@ -26,3 +26,5 @@ func NewUser(name string) *user {
 func (u *user) getId() string{
 	return u.uid
 }
+
+func (u *user) GetName() string { return u.name }

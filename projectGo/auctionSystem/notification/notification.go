@@ -14,7 +14,7 @@ func NewInAppNotification() *InAppNotification {
 }
 
 func (in *InAppNotification) Update(uid string, itemid string, newPrice int) {
-	fmt.Printf("[InAppNotification]:[Notification to %s]:%s new bid %d",uid,itemid,newPrice)
+	fmt.Printf("[InAppNotification]:[Notification to %s]:%s new bid %d\n",uid,itemid,newPrice)
 }
 
 type EmailNotification struct {
@@ -25,5 +25,5 @@ func NewEmailNotification() *EmailNotification {
 }
 
 func (in *EmailNotification) Update(uid string, itemid string, newPrice int) {
-	fmt.Printf("[EmailNotification]:[Notification to %s]:%s new bid %d",uid,itemid,newPrice)
+	fmt.Printf("[EmailNotification]:[Notification to %s]:%s new bid %d\n",uid,itemid,newPrice)
 }
