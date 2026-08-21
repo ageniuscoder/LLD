@@ -1,5 +1,9 @@
 package ll
 
+import (
+	"itert/iterator"
+)
+
 type node[T any] struct {
 	data T
 	next *node[T]
@@ -37,4 +41,28 @@ func (ll *Ll[T]) InsertEnd(data T) {
 	}
 
 	temp.next = node
+}
+
+func (ll *Ll[T]) GetIterator() iterator.Iterator[T] {
+	return NewLlIterator(ll.head)
+}
+
+type LlIterator[T any] struct {
+	curr *node[T]
+}
+
+func NewLlIterator[T any](node *node[T]) *LlIterator[T] {
+	return &LlIterator[T]{
+		curr: node,
+	}
+}
+
+func (lli *LlIterator[T]) IsNext() bool {
+	return lli.curr != nil
+}
+
+func (lli *LlIterator[T]) Next() T {
+	data := lli.curr.data
+	lli.curr = lli.curr.next
+	return data
 }
