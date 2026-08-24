@@ -26,5 +26,5 @@ func (f *file) Ls(indent int) {
 	fmt.Println(strings.Repeat("   ",indent)+f.name)
 }
 func (f *file) OpenAll(indent int){
-	fmt.Println(strings.Repeat("   ",indent)+f.name)
+	f.Ls(indent)
 }
