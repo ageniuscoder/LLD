@@ -1,9 +1,9 @@
 package obs
 
 type Channel interface {
-	Add(User)
-	Notify(string)
-	Remove(User)
+	Add(u User)
+	Notify()
+	Remove(u User)
 }
 
 type striver struct {
@@ -28,13 +28,17 @@ func (s *striver) Remove(u User) {
 	}
 }
 
-func (s *striver) Notify(video string) {
+func (s *striver) Notify() {
 	for _, sub := range s.subs {
-		sub.Update(video)
+		sub.Update()
 	}
 }
 
 func (s *striver) UploadVideo(title string) {
 	s.video = title
-	s.Notify(s.video)
+	s.Notify()
+}
+
+func (s *striver) FetchMsg() string {
+	return s.video
 }
