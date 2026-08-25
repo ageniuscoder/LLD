@@ -7,16 +7,19 @@ type Walker interface {
 }
 
 type normalWalk struct{}
-func NewNormalWalk() *normalWalk{
+
+func NewNormalWalk() *normalWalk {
 	return &normalWalk{}
 }
-func (n normalWalk) Walk(){
+func (n normalWalk) Walk() {
 	fmt.Println("normal Walk")
 }
+
 type noWalk struct{}
-func NewNoWalk() *noWalk{
+
+func NewNoWalk() *noWalk {
 	return &noWalk{}
 }
-func (n noWalk) Walk(){
+func (n noWalk) Walk() {
 	fmt.Println("no walk")
 }
