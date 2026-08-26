@@ -1,0 +1,3 @@
+method overloading is not allowed in golang, so we have to use different name for method
+
+it also used double dispatch
