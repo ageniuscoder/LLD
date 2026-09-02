@@ -6,49 +6,49 @@ import (
 )
 
 type DataProcessor struct {
-	mu sync.Mutex
-	cond *sync.Cond
+	mu        sync.Mutex
+	cond      *sync.Cond
 	dataReady bool
-	data string
+	data      string
 }
 
-func NewDataProcessor() *DataProcessor{
-	dp:=&DataProcessor{}
-	dp.cond=sync.NewCond(&dp.mu)
+func NewDataProcessor() *DataProcessor {
+	dp := &DataProcessor{}
+	dp.cond = sync.NewCond(&dp.mu)
 	return dp
 }
 
-func (dp *DataProcessor) waitData() string{
+func (dp *DataProcessor) waitData() string {
 	dp.mu.Lock()
 	defer dp.mu.Unlock()
 
-	for !dp.dataReady{
+	for !dp.dataReady { //always wait in for loop not in if condition
 		dp.cond.Wait()
 	}
 
-	dp.dataReady=false
+	dp.dataReady = false
 	return dp.data
 }
 
-func (dp *DataProcessor) producer(data string){
+func (dp *DataProcessor) producer(data string) {
 	dp.mu.Lock()
 	defer dp.mu.Unlock()
-	dp.data=data
-	dp.dataReady=true
+	dp.data = data
+	dp.dataReady = true
 	dp.cond.Signal()
 }
 
 func main() {
-	dp:=NewDataProcessor()
+	dp := NewDataProcessor()
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func(){
+	go func() {
 		defer wg.Done()
-		data:=dp.waitData()
-		fmt.Println("Recieved data: ",data)
+		data := dp.waitData()
+		fmt.Println("Recieved data: ", data)
 	}()
 
-	go func(){
+	go func() {
 		defer wg.Done()
 		dp.producer("mangal")
 	}()
