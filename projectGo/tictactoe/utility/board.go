@@ -6,14 +6,16 @@ import (
 )
 
 type Board struct {
-	size  int
-	cells [][]*Cell
+	size        int
+	cells       [][]*Cell
+	visitedcell int
 }
 
 func NewBoard(size int) *Board {
 	b := &Board{
-		size:  size,
-		cells: make([][]*Cell, size),
+		size:        size,
+		cells:       make([][]*Cell, size),
+		visitedcell: 0,
 	}
 	for i := range b.cells {
 		b.cells[i] = make([]*Cell, size)
@@ -42,20 +44,17 @@ func (b *Board) cellEmpty(x, y int) bool {
 func (b *Board) PlaceSymbol(x, y int, symbol enum.Symbol) bool {
 	if b.cellEmpty(x, y) {
 		b.cells[x][y].Place(symbol)
+		b.visitedcell++
 		return true
 	}
 	return false
 }
 
 func (b *Board) IsFull() bool {
-	for i := range b.cells {
-		for j := range b.cells[i] {
-			if b.cellEmpty(i, j) {
-				return false
-			}
-		}
+	if b.visitedcell == b.size*b.size {
+		return true
 	}
-	return true
+	return false
 }
 
 func (b *Board) checkRow(x int, s enum.Symbol) bool {

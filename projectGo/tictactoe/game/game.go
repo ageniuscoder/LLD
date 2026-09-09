@@ -43,17 +43,19 @@ func (g *Game) makeMove(x, y int) bool {
 	return g.board.PlaceSymbol(x, y, g.po.GetSymbol())
 }
 
-func (g *Game) play() {
-
+func (g *Game) getPlayerName() string {
 	name := ""
 	if g.turn == enum.X {
 		name = g.px.GetName()
 	} else {
 		name = g.po.GetName()
 	}
-	var row, col int
+	return name
+}
 
-	fmt.Printf("%s, make move (enter row and column): ", name)
+func (g *Game) play() {
+	var row, col int
+	fmt.Printf("%s, make move (enter row and column): ", g.getPlayerName())
 	fmt.Scan(&row, &col)
 
 	if !g.makeMove(row, col) {
