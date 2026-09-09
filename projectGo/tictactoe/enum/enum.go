@@ -37,7 +37,7 @@ const (
 func (s Symbol) String() string {
 	switch s {
 	case E:
-		return "E"
+		return "_"
 	case X:
 		return "X"
 	case O:
