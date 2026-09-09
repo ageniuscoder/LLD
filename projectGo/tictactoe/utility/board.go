@@ -1,6 +1,9 @@
 package utility
 
-import "tictactoe/enum"
+import (
+	"fmt"
+	"tictactoe/enum"
+)
 
 type Board struct {
 	size  int
@@ -84,11 +87,11 @@ func (b *Board) checkd1(s enum.Symbol) bool {
 
 func (b *Board) checkd2(s enum.Symbol) bool {
 	for i := 0; i < b.size; i++ {
-		if !b.cells[i][b.size-i].Contains(s) {
+		if !b.cells[i][b.size-i-1].Contains(s) {
 			return false
 		}
 	}
-	return false
+	return true
 }
 
 func (b *Board) CheckWin(x, y int, symbol enum.Symbol) bool {
@@ -113,4 +116,60 @@ func (b *Board) CheckWin(x, y int, symbol enum.Symbol) bool {
 	}
 
 	return false
+}
+
+func (b *Board) Print() {
+	fmt.Println()
+
+	// Column numbers
+	fmt.Print("     ")
+	for j := 0; j < b.size; j++ {
+		fmt.Printf(" %d  ", j)
+	}
+	fmt.Println()
+
+	// Top border
+	fmt.Print("   ┌")
+	for j := 0; j < b.size; j++ {
+		fmt.Print("───")
+		if j != b.size-1 {
+			fmt.Print("┬")
+		}
+	}
+	fmt.Println("┐")
+
+	// Rows
+	for i := 0; i < b.size; i++ {
+		fmt.Printf(" %d │", i)
+
+		for j := 0; j < b.size; j++ {
+			fmt.Printf(" %s │", b.cells[i][j].symbol.String())
+		}
+
+		fmt.Println()
+
+		// Row separator
+		if i != b.size-1 {
+			fmt.Print("   ├")
+			for j := 0; j < b.size; j++ {
+				fmt.Print("───")
+				if j != b.size-1 {
+					fmt.Print("┼")
+				}
+			}
+			fmt.Println("┤")
+		}
+	}
+
+	// Bottom border
+	fmt.Print("   └")
+	for j := 0; j < b.size; j++ {
+		fmt.Print("───")
+		if j != b.size-1 {
+			fmt.Print("┴")
+		}
+	}
+	fmt.Println("┘")
+
+	fmt.Println()
 }
