@@ -26,6 +26,7 @@ type BookingStatus int
 
 const (
 	_ BookingStatus = iota
+	BOOKING_CREATED
 	BOOKING_CONFIRMED
 	BOOKING_FAILED
 )
@@ -41,15 +42,16 @@ func (b BookingStatus) String() string {
 	}
 }
 
-type PaymentStaus int
+type PaymentStatus int
 
 const (
-	_ PaymentStaus = iota
+	_ PaymentStatus = iota
+	PAYMENT_CREATED
 	PAYMENT_SUCCESS
 	PAYMENT_FAILED
 )
 
-func (p PaymentStaus) String() string {
+func (p PaymentStatus) String() string {
 	switch p {
 	case PAYMENT_SUCCESS:
 		return "succes"
