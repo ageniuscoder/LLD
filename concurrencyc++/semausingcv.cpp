@@ -27,6 +27,15 @@ class Sema{
         }
         cv.notify_one();
     }
+
+    bool tryAccquire(){
+        lock_guard<mutex> lock(mu);
+        if(count>0){
+            count--;
+            return true;
+        }
+        return false;
+    }
 };
 
 int main(){
