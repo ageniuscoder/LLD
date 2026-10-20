@@ -11,7 +11,7 @@ class NormalTalk:public Talkable{
     void talk(){
         cout<<"Normal Talk"<<endl;
     }
-};
+};w
 class NoTalk:public Talkable{
     public:
     void talk(){
