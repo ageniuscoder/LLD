@@ -86,7 +86,6 @@ class KingBurger:public Factory{
                 return make_unique<PremiumWheatBurger>();
             default:
                 return nullptr;
-
         }
     }
 };

@@ -31,7 +31,6 @@ enum class Type{
 };
 
 class Factory{
-    Type t;
     public:
     static unique_ptr<Burger> create(Type t){
         if(t==Type::BASIC){
