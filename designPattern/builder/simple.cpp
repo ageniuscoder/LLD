@@ -5,7 +5,7 @@ class HTTPRequest{
     string method;
     map<string,string> headers;
     string body;
-    int timeout=0         ;
+    int timeout=0;        ;
 
     HTTPRequest(){}
     public:
